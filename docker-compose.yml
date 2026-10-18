@@ -2,7 +2,7 @@ services:
   localstack:
     image: localstack/localstack:4.9
     ports:
-      - "4566:4566"
+      - "4567:4567"
     environment:
       - SERVICES=kinesis,dynamodb,iam,sts
       - ENVIRONMENT_IAM=1
