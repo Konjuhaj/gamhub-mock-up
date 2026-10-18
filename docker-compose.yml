@@ -2,12 +2,30 @@ services:
   localstack:
     image: localstack/localstack:4.9
     ports:
-      - "4567:4567"
+      - "4567:4566"
     environment:
       - SERVICES=kinesis,dynamodb,iam,sts
       - ENFORCE_IAM=1
     healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:4567/_localstack/health"]
+      test: ["CMD", "curl", "-sf", "http://localhost:4566/_localstack/health"]
       interval: 5s
       retries: 20
+
+  brazemock:
+    build:
+      context: .
+      dockerfile: cmd/brazemock/Dockerfile
+    ports: 
+    - "8081:8081"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8081/health"]
+      interval: 5s
+      retries: 10
+
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
 
