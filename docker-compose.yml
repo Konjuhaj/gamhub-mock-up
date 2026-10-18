@@ -5,9 +5,9 @@ services:
       - "4567:4567"
     environment:
       - SERVICES=kinesis,dynamodb,iam,sts
-      - ENVIRONMENT_IAM=1
+      - ENFORCE_IAM=1
     healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:4566/_localstack/health"]
+      test: ["CMD", "curl", "-sf", "http://localhost:4567/_localstack/health"]
       interval: 5s
       retries: 20
 
