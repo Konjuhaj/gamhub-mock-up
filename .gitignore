@@ -1,1 +1,7 @@
 .env
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+localstack_providers_override.tf
