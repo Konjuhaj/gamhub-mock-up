@@ -1,4 +1,4 @@
-resource "aws_kinesis_stream" "player_events" {
+resource "aws_kinesis_stream" "player-events" {
   name             = "player-events"
   shard_count      = 1
   retention_period = 24
