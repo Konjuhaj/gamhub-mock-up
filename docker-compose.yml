@@ -1,13 +1,15 @@
 services:
   localstack:
-    image: localstack/localstack:4.9
+    image: localstack/localstack-pro:2026.10.0
     ports:
-      - "4567:4566"
+      - "4566:4566"
     environment:
+      - LOCALSTACK_AUTH_TOKEN=${LOCALSTACK_AUTH_TOKEN}
       - SERVICES=kinesis,dynamodb,iam,sts
       - ENFORCE_IAM=1
     healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:4566/_localstack/health"]
+      test: ["CMD", "/opt/code/localstack/.venv/bin/python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:4566/_localstack/health', timeout=3)"]
       interval: 5s
       retries: 20
 
