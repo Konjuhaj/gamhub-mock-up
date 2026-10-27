@@ -1,6 +1,9 @@
 package main
 
 import (
+	"strconv"
+	"math/rand"
+	"math"
 	"encoding/json"
 	"errors"
 	"io"
@@ -13,9 +16,9 @@ import (
 type Server struct {
 	mu            sync.Mutex
 	out           *os.File
-	latency       int
-	errorRate     int
-	throttleUntil int
+	latency       time.Duration
+	errorRate     float64
+	throttleUntil time.Time
 }
 
 func (s *Server) appendLine(v any) error {
@@ -88,10 +91,40 @@ type ErrorResponse struct {
 	Errors  []string `json:"errors"`
 }
 
+
+func (s *Server) injectFailure(w http.ResponseWriter) bool {
+      if s.latency > 0 {
+              time.Sleep(time.Duration(s.latency))
+      }
+
+      if remaining := time.Until(s.throttleUntil); remaining > 0 {
+              secs := int(math.Ceil(remaining.Seconds()))
+              w.Header().Set("X-RateLimit-Reset", strconv.Itoa(secs))
+              writeError(w, http.StatusTooManyRequests, "429 Rate Limited")
+              return true
+      }
+
+      if s.errorRate > 0 && rand.Float64() < s.errorRate {
+              writeError(w, http.StatusInternalServerError, "Internal Server Error")
+              return true
+      }
+
+      return false
+}
+
 func (s *Server) handleTrack(w http.ResponseWriter, r *http.Request) {
+	if s.injectFailure(w) {
+		return
+	}
+
 	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+	v, err := io.ReadAll(r.Body)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "Error while parsing request body. Please check your syntax", err.Error())
+		return
+	}
 	var req Body
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.Unmarshal(v, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "Error while parsing request body. Please check your syntax", err.Error())
 		return
 	}
@@ -108,10 +141,9 @@ func (s *Server) handleTrack(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	payload, _ := io.ReadAll(r.Body)
 	line := map[string]any{
-		"received": time.Now().GoString(),
-		"payload":  payload,
+		"received_at_ms": time.Now().UnixMilli(),
+		"payload":  json.RawMessage(v),
 	}
 
 	if err := s.appendLine(line); err != nil {

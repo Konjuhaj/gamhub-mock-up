@@ -6,25 +6,26 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"time"
 )
 
-func getenv(key, fallback string) string {
+func getenvInt(key string, fallback int) int {
 	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return fallback
-}
-
-func getcontrolenv(key string, fallback int) int {
-	if v := os.Getenv(key); v != "" {
-		cv, err := strconv.Atoi(key)
-		if err != nil {
-			return cv
+		if n, err := strconv.Atoi(v); err == nil {
+			return n
 		}
 	}
 	return fallback
 }
 
+func getenvFloat(key string, fallback float64) float64 {
+	if v := os.Getenv(key); v != "" {
+		if f, err := strconv.ParseFloat(v, 64); err == nil {
+			return f
+		}
+	}
+	return fallback
+}
 func main() {
 	path := "/data/received.jsonl"
 	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
@@ -35,9 +36,9 @@ func main() {
 
 	s := &Server{
 		out:           f,
-		throttleUntil: getcontrolenv("THROTTLE_UNTIL", 0),
-		latency:       getcontrolenv("LATENCY", 0),
-		errorRate:     getcontrolenv("ERROR_RATE", 0),
+		latency:       time.Duration(getenvInt("LATENCY_MS", 0)) * time.Millisecond,
+		errorRate:     getenvFloat("ERROR_RATE", 0),
+		throttleUntil: time.Now().Add(time.Duration(getenvInt("THROTTLE_SECONDS", 0)) * time.Second),
 	}
 	router := mux.NewRouter()
 
