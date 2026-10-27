@@ -11,10 +11,10 @@ import (
 )
 
 type Server struct {
-	mu  sync.Mutex
-	out *os.File
-	latency  int
-	errorRate int
+	mu            sync.Mutex
+	out           *os.File
+	latency       int
+	errorRate     int
 	throttleUntil int
 }
 

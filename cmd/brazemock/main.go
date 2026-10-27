@@ -18,7 +18,7 @@ func getenv(key, fallback string) string {
 func getcontrolenv(key string, fallback int) int {
 	if v := os.Getenv(key); v != "" {
 		cv, err := strconv.Atoi(key)
-		if  err != nil {
+		if err != nil {
 			return cv
 		}
 	}
@@ -34,10 +34,10 @@ func main() {
 	defer f.Close()
 
 	s := &Server{
-		out: f,
-		throttleUntil : getcontrolenv("THROTTLE_UNTIL", 0),
-		latency : getcontrolenv("LATENCY", 0),
-		errorRate : getcontrolenv("ERROR_RATE", 0),
+		out:           f,
+		throttleUntil: getcontrolenv("THROTTLE_UNTIL", 0),
+		latency:       getcontrolenv("LATENCY", 0),
+		errorRate:     getcontrolenv("ERROR_RATE", 0),
 	}
 	router := mux.NewRouter()
 
