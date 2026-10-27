@@ -19,6 +19,8 @@ services:
       dockerfile: cmd/brazemock/Dockerfile
     ports: 
     - "8081:8081"
+    volumes:
+    - ./tmp/brazemock:/data 
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8081/health"]
       interval: 5s
