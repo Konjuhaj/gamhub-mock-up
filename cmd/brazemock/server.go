@@ -1,14 +1,14 @@
 package main
 
 import (
-	"strconv"
-	"math/rand"
-	"math"
 	"encoding/json"
 	"errors"
 	"io"
+	"math"
+	"math/rand"
 	"net/http"
 	"os"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -16,9 +16,9 @@ import (
 type Server struct {
 	mu            sync.Mutex
 	out           *os.File
-	latency       time.Duration
-	errorRate     float64
-	throttleUntil time.Time
+	Latency       time.Duration `json:"latency"`
+	ErrorRate     float64       `json:"error_rate"`
+	ThrottleUntil time.Time     `json:"throttle_until"`
 }
 
 func (s *Server) appendLine(v any) error {
@@ -58,12 +58,19 @@ func (e event) Validate() error {
 }
 
 type purchase struct {
-	ExternalId string  `json:"external_id"`
-	ProductId  string  `json:"product_id"`
-	Currency   string  `json:"currency"`
-	Price      float64 `json:"price"`
-	Quantity   int     `json:"quantity"`
-	Time       string  `json:"time"`
+	ExternalId *string  `json:"external_id"`
+	ProductId  *string  `json:"product_id"`
+	Currency   *string  `json:"currency"`
+	Price      *float64 `json:"price"`
+	Quantity   int      `json:"quantity"`
+	Time       *string  `json:"time"`
+}
+
+func (p purchase) Validate() error {
+	if p.ExternalId == nil || p.ProductId == nil || p.Currency == nil || p.Price == nil || p.Time == nil {
+		return errors.New("Missing mandatory attribute. Please check syntax")
+	}
+	return nil
 }
 
 type Body struct {
@@ -75,6 +82,12 @@ type Body struct {
 func (b Body) Validate() error {
 	for _, event := range b.Events {
 		v := event.Validate()
+		if v != nil {
+			return v
+		}
+	}
+	for _, purchase := range b.Purchases {
+		v := purchase.Validate()
 		if v != nil {
 			return v
 		}
@@ -91,25 +104,38 @@ type ErrorResponse struct {
 	Errors  []string `json:"errors"`
 }
 
+func (s *Server) setFailure(w http.ResponseWriter, r *http.Request) {
+	v, err := io.ReadAll(r.Body)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Internal Server Error")
+		return
+	}
+	if err := json.Unmarshal(v, &s); err != nil {
+		writeError(w, http.StatusInternalServerError, "Internal Server Error")
+		return
+	}
+
+	w.WriteHeader(200)
+}
 
 func (s *Server) injectFailure(w http.ResponseWriter) bool {
-      if s.latency > 0 {
-              time.Sleep(time.Duration(s.latency))
-      }
+	if s.Latency > 0 {
+		time.Sleep(time.Duration(s.Latency))
+	}
 
-      if remaining := time.Until(s.throttleUntil); remaining > 0 {
-              secs := int(math.Ceil(remaining.Seconds()))
-              w.Header().Set("X-RateLimit-Reset", strconv.Itoa(secs))
-              writeError(w, http.StatusTooManyRequests, "429 Rate Limited")
-              return true
-      }
+	if remaining := time.Until(s.ThrottleUntil); remaining > 0 {
+		secs := int(math.Ceil(remaining.Seconds()))
+		w.Header().Set("X-RateLimit-Reset", strconv.Itoa(secs))
+		writeError(w, http.StatusTooManyRequests, "429 Rate Limited")
+		return true
+	}
 
-      if s.errorRate > 0 && rand.Float64() < s.errorRate {
-              writeError(w, http.StatusInternalServerError, "Internal Server Error")
-              return true
-      }
+	if s.ErrorRate > 0 && rand.Float64() < s.ErrorRate {
+		writeError(w, http.StatusInternalServerError, "Internal Server Error")
+		return true
+	}
 
-      return false
+	return false
 }
 
 func (s *Server) handleTrack(w http.ResponseWriter, r *http.Request) {
@@ -136,14 +162,14 @@ func (s *Server) handleTrack(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Validate() != nil {
-		writeError(w, http.StatusBadRequest, "Max Input Length Exceeded", "Request contains more than 75 objects")
+	if err := req.Validate(); err != nil {
+		writeError(w, http.StatusBadRequest, "", err.Error())
 		return
 	}
 
 	line := map[string]any{
 		"received_at_ms": time.Now().UnixMilli(),
-		"payload":  json.RawMessage(v),
+		"payload":        json.RawMessage(v),
 	}
 
 	if err := s.appendLine(line); err != nil {
@@ -176,6 +202,10 @@ func (s *Server) handleDelete(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(req.ExternalIds) > 50 {
 		writeError(w, http.StatusBadRequest, "the max number of ids per request was exceeded")
+		return
+	}
+	if len(req.ExternalIds) == 0 {
+		writeError(w, http.StatusBadRequest, "no external id's found in list")
 		return
 	}
 

@@ -36,14 +36,15 @@ func main() {
 
 	s := &Server{
 		out:           f,
-		latency:       time.Duration(getenvInt("LATENCY_MS", 0)) * time.Millisecond,
-		errorRate:     getenvFloat("ERROR_RATE", 0),
-		throttleUntil: time.Now().Add(time.Duration(getenvInt("THROTTLE_SECONDS", 0)) * time.Second),
+		Latency:       time.Duration(getenvInt("LATENCY_MS", 0)) * time.Millisecond,
+		ErrorRate:     getenvFloat("ERROR_RATE", 0),
+		ThrottleUntil: time.Now().Add(time.Duration(getenvInt("THROTTLE_SECONDS", 0)) * time.Second),
 	}
 	router := mux.NewRouter()
 
 	router.HandleFunc("/users/track", s.handleTrack).Methods("POST")
 	router.HandleFunc("/users/delete", s.handleDelete).Methods("POST")
+	router.HandleFunc("/admin/failure", s.setFailure).Methods("POST")
 	router.HandleFunc("/health", s.handleHealth).Methods("GET")
 
 	http.ListenAndServe(":8081", router)
