@@ -110,6 +110,9 @@ func (s *Server) setFailure(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "Internal Server Error")
 		return
 	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	if err := json.Unmarshal(v, &s); err != nil {
 		writeError(w, http.StatusInternalServerError, "Internal Server Error")
 		return
