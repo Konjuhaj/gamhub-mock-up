@@ -47,5 +47,5 @@ func main() {
 	router.HandleFunc("/admin/failure", s.setFailure).Methods("POST")
 	router.HandleFunc("/health", s.handleHealth).Methods("GET")
 
-	http.ListenAndServe(":8081", router)
+	log.Fatal(http.ListenAndServe(":8081", router))
 }
