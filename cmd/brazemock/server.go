@@ -107,14 +107,14 @@ type ErrorResponse struct {
 func (s *Server) setFailure(w http.ResponseWriter, r *http.Request) {
 	v, err := io.ReadAll(r.Body)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "Internal Server Error")
+		writeError(w, http.StatusBadRequest, "invalid setting object")
 		return
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	if err := json.Unmarshal(v, &s); err != nil {
-		writeError(w, http.StatusBadRequest, "Internal Server Error")
+		writeError(w, http.StatusBadRequest, "invalid setting object")
 		return
 	}
 
@@ -122,18 +122,23 @@ func (s *Server) setFailure(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) injectFailure(w http.ResponseWriter) bool {
-	if s.Latency > 0 {
-		time.Sleep(time.Duration(s.Latency))
+	s.mu.Lock()
+	latency := s.Latency
+	throttleUntil := s.ThrottleUntil
+	errorRate := s.ErrorRate
+	s.mu.Unlock()
+	if latency > 0 {
+		time.Sleep(time.Duration(latency))
 	}
 
-	if remaining := time.Until(s.ThrottleUntil); remaining > 0 {
+	if remaining := time.Until(throttleUntil); remaining > 0 {
 		secs := int(math.Ceil(remaining.Seconds()))
 		w.Header().Set("X-RateLimit-Reset", strconv.Itoa(secs))
 		writeError(w, http.StatusTooManyRequests, "429 Rate Limited")
 		return true
 	}
 
-	if s.ErrorRate > 0 && rand.Float64() < s.ErrorRate {
+	if errorRate > 0 && rand.Float64() < errorRate {
 		writeError(w, http.StatusInternalServerError, "Internal Server Error")
 		return true
 	}

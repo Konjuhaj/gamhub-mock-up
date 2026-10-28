@@ -29,7 +29,6 @@ services:
       - LATENCY_MS=${LATENCY:-0}
       - THROTTLE_SECONDS=${THROTTLE_UNTIL:-0}
       - ERROR_RATE=${ERROR_RATE:-0}
-      - RECORD_PATH=${RECORD_PATH:-0}
 
   prometheus:
     image: prom/prometheus:v3.5.0
