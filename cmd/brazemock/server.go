@@ -107,14 +107,14 @@ type ErrorResponse struct {
 func (s *Server) setFailure(w http.ResponseWriter, r *http.Request) {
 	v, err := io.ReadAll(r.Body)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "Internal Server Error")
+		writeError(w, http.StatusBadRequest, "Internal Server Error")
 		return
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	if err := json.Unmarshal(v, &s); err != nil {
-		writeError(w, http.StatusInternalServerError, "Internal Server Error")
+		writeError(w, http.StatusBadRequest, "Internal Server Error")
 		return
 	}
 
@@ -166,7 +166,7 @@ func (s *Server) handleTrack(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := req.Validate(); err != nil {
-		writeError(w, http.StatusBadRequest, "", err.Error())
+		writeError(w, http.StatusBadRequest, "Invalid object", err.Error())
 		return
 	}
 
