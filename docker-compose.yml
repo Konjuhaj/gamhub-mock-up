@@ -26,8 +26,8 @@ services:
       interval: 5s
       retries: 10
     environment:
-      - LATENCY=${LATENCY}
-      - THROTTLE_UNTIL=${THROTTLE_UNTIL}
+      - LATENCY_MS=${LATENCY}
+      - THROTTLE_SECONDS=${THROTTLE_UNTIL}
       - ERROR_RATE=${ERROR_RATE}
       - RECORD_PATH=${RECORD_PATH}
 
