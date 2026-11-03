@@ -64,10 +64,12 @@ func main() {
 		DynamoDbClient: dynamodb.NewFromConfig(cfg),
 	}
 
+	pt.AddPlayers(ctx)
 	if *seedOnly {
-		pt.AddPlayers(ctx)
+		pt.SeedPlayers(ctx)
 		return
 	}
+	
 	et := EventsStream{
 		StreamName:    "player-events",
 		KinesisClient: kinesis.NewFromConfig(cfg),
@@ -99,6 +101,11 @@ func (t PlayersTable) AddPlayers(ctx context.Context) {
 		}
 		Players = append(Players, p)
 
+	}
+}
+
+func (t PlayersTable) SeedPlayers(ctx context.Context) {
+	for p, _ := range Players {
 		item, err := attributevalue.MarshalMap(p)
 		if err != nil {
 			panic(err)

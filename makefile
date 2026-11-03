@@ -17,7 +17,7 @@ test:
 	go test ./...
 
 loadtest:
-	@echo "TODO: PER-99"
+	python3 -u tests/loadtest.py $(ARGS)
 
 chaos:
 	@echo "TODO: PER-103"
