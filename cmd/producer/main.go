@@ -105,7 +105,7 @@ func (t PlayersTable) AddPlayers(ctx context.Context) {
 }
 
 func (t PlayersTable) SeedPlayers(ctx context.Context) {
-	for p, _ := range Players {
+	for _, p := range Players {
 		item, err := attributevalue.MarshalMap(p)
 		if err != nil {
 			panic(err)
