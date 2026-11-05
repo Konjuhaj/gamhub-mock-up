@@ -1,6 +1,6 @@
 module github.com/gamehub-mockup
 
-go 1.25.1
+go 1.26.0
 
 require github.com/gorilla/mux v1.8.1
 
@@ -28,4 +28,5 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sts v1.51.6 // indirect
 	github.com/aws/smithy-go v1.28.7 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
+	github.com/prometheus/client_golang v1.25.0 // indirect
 )
