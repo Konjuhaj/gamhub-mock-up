@@ -41,8 +41,8 @@ type TrackRequest struct {
 }
 
 func (s BrazeSender) SendEvents(ctx context.Context, data []UserEvent) error {
-	waitTime := time.Duration(250)
 	for i := 0; i < len(data); i += maxBrazeObjects {
+		waitTime := time.Duration(250)
 		end := min(i+maxBrazeObjects, len(data))
 		// Production would add random jitter and poll events indefinetly so it wouldn't shut down
 		for attempt := 0; attempt < 3; attempt++ {
@@ -50,11 +50,12 @@ func (s BrazeSender) SendEvents(ctx context.Context, data []UserEvent) error {
 			// 429 is awaited elsewhere
 			if status >= 429 || err != nil {
 				time.Sleep(time.Millisecond * waitTime)
-				 waitTime = waitTime * 2
+				waitTime = waitTime * 2
 				if attempt == 2 {
 					recordFailed(data[i:end])
 					return fmt.Errorf("Unable to send data to endpoint. Here's why %v\n", err)
 				}
+				// Production would check other codes as well and behave differently. Currently Brazemock only sends this
 			} else if status == 400 {
 				recordFailed(data[i:end])
 				return fmt.Errorf("Unable to send data to endpoint. Here's why %v\n", err)
@@ -62,7 +63,7 @@ func (s BrazeSender) SendEvents(ctx context.Context, data []UserEvent) error {
 				recordSent(data[i:end])
 				break
 			}
-			// this means that we tried 3 times without  succeeding 
+			// this means that we tried 3 times without  succeeding
 		}
 	}
 	return nil

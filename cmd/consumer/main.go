@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -64,15 +67,15 @@ func (t CheckpointTable) saveCheckpoint(ctx context.Context, seq string) {
 		UpdatedAt:      time.Now().UnixMilli(),
 	})
 	if err != nil {
-	fmt.Printf("Could not marshal map sequence number. Here's why %v\n", err)
-}
+		fmt.Printf("Could not marshal map sequence number. Here's why %v\n", err)
+	}
 	_, err = t.DynamoDbClient.PutItem(ctx, &dynamodb.PutItemInput{
 		TableName: aws.String(t.TableName),
 		Item:      item,
 	})
 	if err != nil {
-	fmt.Printf("Could not save checkpoint. Here's why %v\n", err)
-}
+		fmt.Printf("Could not save checkpoint. Here's why %v\n", err)
+	}
 }
 
 type EventsStream struct {
@@ -107,8 +110,14 @@ func (e *EventsStream) getIterator(ctx context.Context, ct CheckpointTable) *kin
 
 func (e *EventsStream) readStream(ctx context.Context, it *kinesis.GetShardIteratorOutput) {
 	iterator := it.ShardIterator
+	// the send and checkpoint always finish, even after Ctrl-C, so a batch is never left half done
+	work := context.WithoutCancel(ctx)
 
 	for iterator != nil {
+		if ctx.Err() != nil {
+			fmt.Println("Shutting down, last checkpoint saved")
+			return
+		}
 		var events []UserEvent
 		out, err := e.KinesisClient.GetRecords(ctx, &kinesis.GetRecordsInput{
 			ShardIterator: iterator,
@@ -132,23 +141,21 @@ func (e *EventsStream) readStream(ctx context.Context, it *kinesis.GetShardItera
 			events = append(events, e)
 		}
 		if len(out.Records) != 0 {
-			err := e.Sender.SendEvents(ctx, events)
+			err := e.Sender.SendEvents(work, events)
 			if err != nil {
 				panic(err)
 			}
-			e.Ct.saveCheckpoint(ctx, *out.Records[len(out.Records)-1].SequenceNumber)
+			e.Ct.saveCheckpoint(work, *out.Records[len(out.Records)-1].SequenceNumber)
 		}
 
 		iterator = out.NextShardIterator
-		if len(out.Records) == 0 {
-			time.Sleep(time.Millisecond * 250)
-		}
+		time.Sleep(time.Millisecond * 250)
 	}
 }
 
 func main() {
-	// production would have gracefull shutdown with Syscall SIGTERM implemented. Not needed for PoC
-	ctx := context.Background()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 	cfg, err := config.LoadDefaultConfig(ctx)
 	if err != nil {
 		panic(err)

@@ -69,7 +69,7 @@ func main() {
 		pt.SeedPlayers(ctx)
 		return
 	}
-	
+
 	et := EventsStream{
 		StreamName:    "player-events",
 		KinesisClient: kinesis.NewFromConfig(cfg),
