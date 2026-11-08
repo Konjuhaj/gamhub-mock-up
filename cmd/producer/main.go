@@ -60,8 +60,10 @@ func main() {
 		panic(err)
 	}
 	pt := PlayersTable{
-		TableName:      "player_state",
-		DynamoDbClient: dynamodb.NewFromConfig(cfg),
+		TableName: "player_state",
+		DynamoDbClient: dynamodb.NewFromConfig(cfg, func(o *dynamodb.Options) {
+			o.DisableValidateResponseChecksum = true
+		}),
 	}
 
 	pt.AddPlayers(ctx)

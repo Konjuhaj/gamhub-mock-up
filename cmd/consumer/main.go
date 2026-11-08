@@ -137,7 +137,6 @@ func (e *EventsStream) readStream(ctx context.Context, it *kinesis.GetShardItera
 				fmt.Printf("Could not unmarshal event. Here's why %v\n", err)
 				continue
 			}
-			fmt.Printf("%+v\n", e)
 			events = append(events, e)
 		}
 		if len(out.Records) != 0 {
@@ -161,8 +160,10 @@ func main() {
 		panic(err)
 	}
 	ct := CheckpointTable{
-		TableName:      "checkpoints",
-		DynamoDbClient: dynamodb.NewFromConfig(cfg),
+		TableName: "checkpoints",
+		DynamoDbClient: dynamodb.NewFromConfig(cfg, func(o *dynamodb.Options) {
+			o.DisableValidateResponseChecksum = true
+		}),
 	}
 	sender := BrazeSender{
 		Client: &http.Client{Timeout: 10 * time.Second},
