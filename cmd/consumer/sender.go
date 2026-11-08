@@ -41,21 +41,25 @@ type TrackRequest struct {
 }
 
 func (s BrazeSender) SendEvents(ctx context.Context, data []UserEvent) error {
+	waitTime := time.Duration(250)
 	for i := 0; i < len(data); i += maxBrazeObjects {
 		end := min(i+maxBrazeObjects, len(data))
+		// Production would add random jitter and poll events indefinetly so it wouldn't shut down
 		for attempt := 0; attempt < 3; attempt++ {
 			status, err := s.send(ctx, data[i:end])
 			// 429 is awaited elsewhere
 			if status >= 429 || err != nil {
-				time.Sleep(time.Millisecond * 250)
+				time.Sleep(time.Millisecond * waitTime)
+				 waitTime = waitTime * 2
+				if attempt == 2 {
+					return fmt.Errorf("Unable to send data to endpoint. Here's why %v\n", err)
+				}
 			} else if status == 400 {
 				return fmt.Errorf("Unable to send data to endpoint. Here's why %v\n", err)
 			} else {
 				break
 			}
-			if attempt == 2 {
-				return fmt.Errorf("Unable to send data to endpoint. Here's why %v\n", err)
-			}
+			// this means that we tried 3 times without  succeeding 
 		}
 	}
 	return nil

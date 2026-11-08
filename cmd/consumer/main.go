@@ -144,6 +144,7 @@ func (e *EventsStream) readStream(ctx context.Context, it *kinesis.GetShardItera
 }
 
 func main() {
+	// production would have gracefull shutdown with Syscall SIGTERM implemented. Not needed for PoC
 	ctx := context.Background()
 	cfg, err := config.LoadDefaultConfig(ctx)
 	if err != nil {
