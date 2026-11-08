@@ -1,8 +1,6 @@
 package main
 
 import (
-	"io"
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -57,9 +55,31 @@ func (t CheckpointTable) getLastCheckpoint(ctx context.Context) (Checkpoint, err
 	return checkpoints, nil
 }
 
+func (t CheckpointTable) saveCheckpoint(ctx context.Context, seq string) {
+	// In a real world production setting we would check weather we're able to save the checkpoint.
+	// since this is a controlled PoC it's not necessary
+	item, err := attributevalue.MarshalMap(Checkpoint{
+		ShardId:        "shardId-000000000000",
+		SequenceNumber: seq,
+		UpdatedAt:      time.Now().UnixMilli(),
+	})
+	if err != nil {
+	fmt.Printf("Could not marshal map sequence number. Here's why %v\n", err)
+}
+	_, err = t.DynamoDbClient.PutItem(ctx, &dynamodb.PutItemInput{
+		TableName: aws.String(t.TableName),
+		Item:      item,
+	})
+	if err != nil {
+	fmt.Printf("Could not save checkpoint. Here's why %v\n", err)
+}
+}
+
 type EventsStream struct {
 	KinesisClient *kinesis.Client
 	StreamName    string
+	Sender        BrazeSender
+	Ct            CheckpointTable
 }
 
 func (e *EventsStream) getIterator(ctx context.Context, ct CheckpointTable) *kinesis.GetShardIteratorOutput {
@@ -106,73 +126,21 @@ func (e *EventsStream) readStream(ctx context.Context, it *kinesis.GetShardItera
 				continue
 			}
 			fmt.Printf("%+v\n", e)
-			events = append(events, e) 
+			events = append(events, e)
 		}
-		if len(events) != 0 {
-			sendBrazeEvents(ctx, events) 
+		if len(out.Records) != 0 {
+			err := e.Sender.SendEvents(ctx, events)
+			if err != nil {
+				panic(err)
+			}
+			e.Ct.saveCheckpoint(ctx, *out.Records[len(out.Records)-1].SequenceNumber)
 		}
+
 		iterator = out.NextShardIterator
 		if len(out.Records) == 0 {
 			time.Sleep(time.Millisecond * 250)
 		}
 	}
-}
-
-type event struct {
-	ExternalId *string        `json:"external_id"`
-	Name       *string        `json:"name"`
-	Time       *string        `json:"time"`
-	Properties map[string]any `json:"properties,omitempty"`
-}
-
-func (e event) Validate() error {
-	if e.ExternalId == nil || e.Name == nil || e.Time == nil {
-		return errors.New("Missing mandatory attribute. Please check syntax")
-	}
-	return nil
-}
-
-type purchase struct {
-	ExternalId *string  `json:"external_id"`
-	ProductId  *string  `json:"product_id"`
-	Currency   *string  `json:"currency"`
-	Price      *float64 `json:"price"`
-	Quantity   int      `json:"quantity"`
-	Time       *string  `json:"time"`
-}
-
-func sendBrazeEvents(ctx context.Context, data []UserEvent) int {
-
-	var events []UserEvent
-	var purchases []UserEvent
-
-	for _, event := range data {
-		props := map[string]any{"event_id" : event.EventId, "produced_at" : event.ProducedAt}
-		if event.Type == "purchase" {
-			purchases = append(purchases, event)
-		} else {
-			events = append(events, event)
-		}
-	}
-
-	body := map[string][]UserEvent{
-		"events":    events,
-		"purchases": purchases,
-	}
-	payload, _ := json.Marshal(body)
-	req, _ := http.NewRequestWithContext(ctx, "POST", "http://localhost:8081/users/track", bytes.NewReader(payload))
-	req.Header.Add("Content-Type", "application/json")
-	res, err := http.DefaultClient.Do(req)
-	if err != nil {
-		fmt.Printf("Unable to send request. Here's why %v\n", err)
-		panic(err)
-	}
-	fmt.Printf("Sent %v events to braze with status code %v \n", len(events) + len(purchases), res.StatusCode) 
-	if res.StatusCode != 200 {
-		text, _ := io.ReadAll(res.Body)
-		fmt.Printf("Unable to send request. Here's why %v\n", string(text))
-	}
-	return res.StatusCode
 }
 
 func main() {
@@ -185,9 +153,15 @@ func main() {
 		TableName:      "checkpoints",
 		DynamoDbClient: dynamodb.NewFromConfig(cfg),
 	}
+	sender := BrazeSender{
+		Client: &http.Client{Timeout: 10 * time.Second},
+		URL:    "http://localhost:8081",
+	}
 	k := EventsStream{
 		StreamName:    "player-events",
 		KinesisClient: kinesis.NewFromConfig(cfg),
+		Sender:        sender,
+		Ct:            ct,
 	}
 	input := k.getIterator(ctx, ct)
 	k.readStream(ctx, input)
