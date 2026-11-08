@@ -52,11 +52,14 @@ func (s BrazeSender) SendEvents(ctx context.Context, data []UserEvent) error {
 				time.Sleep(time.Millisecond * waitTime)
 				 waitTime = waitTime * 2
 				if attempt == 2 {
+					recordFailed(data[i:end])
 					return fmt.Errorf("Unable to send data to endpoint. Here's why %v\n", err)
 				}
 			} else if status == 400 {
+				recordFailed(data[i:end])
 				return fmt.Errorf("Unable to send data to endpoint. Here's why %v\n", err)
 			} else {
+				recordSent(data[i:end])
 				break
 			}
 			// this means that we tried 3 times without  succeeding 
@@ -66,6 +69,9 @@ func (s BrazeSender) SendEvents(ctx context.Context, data []UserEvent) error {
 }
 
 func (s BrazeSender) send(ctx context.Context, data []UserEvent) (int, error) {
+	inflightBatches.Inc()
+	defer inflightBatches.Dec()
+
 	var body TrackRequest
 
 	for _, event := range data {
@@ -105,10 +111,12 @@ func (s BrazeSender) send(ctx context.Context, data []UserEvent) (int, error) {
 	req.Header.Add("Content-Type", "application/json")
 	res, err := s.Client.Do(req)
 	if err != nil {
+		recordBrazeRequest(0, err)
 		fmt.Printf("Unable to send request. Here's why %v\n", err)
 		return 0, err
 	}
 	defer res.Body.Close()
+	recordBrazeRequest(res.StatusCode, nil)
 
 	fmt.Printf("Sent %v events to braze with status code %v \n", len(body.Events)+len(body.Purchases), res.StatusCode)
 	if res.StatusCode != 200 {

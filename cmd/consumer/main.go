@@ -118,6 +118,9 @@ func (e *EventsStream) readStream(ctx context.Context, it *kinesis.GetShardItera
 			time.Sleep(time.Second)
 			continue
 		}
+		if out.MillisBehindLatest != nil {
+			consumerLag.Set(float64(*out.MillisBehindLatest))
+		}
 
 		for _, rec := range out.Records {
 			var e UserEvent
@@ -164,6 +167,7 @@ func main() {
 		Sender:        sender,
 		Ct:            ct,
 	}
+	go startMetricsServer(":2112")
 	input := k.getIterator(ctx, ct)
 	k.readStream(ctx, input)
 
