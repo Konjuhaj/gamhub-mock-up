@@ -33,6 +33,10 @@ var (
 		Name: "inflight_batches",
 		Help: "Batches currently being sent to Braze",
 	})
+	suppressedTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "suppressed_total",
+		Help: "Events dropped before reaching Braze by privacy reason",
+	}, []string{"reason"})
 )
 
 func startMetricsServer(addr string) {
@@ -59,4 +63,8 @@ func recordSent(data []UserEvent) {
 
 func recordFailed(data []UserEvent) {
 	eventsTotal.WithLabelValues("failed").Add(float64(len(data)))
+}
+
+func recordSuppressed(reason string) {
+	suppressedTotal.WithLabelValues(reason).Inc()
 }

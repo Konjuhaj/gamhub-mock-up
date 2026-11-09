@@ -53,7 +53,7 @@ func (s BrazeSender) SendEvents(ctx context.Context, data []UserEvent) error {
 				waitTime = waitTime * 2
 				if attempt == 2 {
 					recordFailed(data[i:end])
-					return fmt.Errorf("Could not send data")  
+					return fmt.Errorf("Could not send data")
 				}
 				// Production would check other codes as well and behave differently. Currently Brazemock only sends this
 			} else if status == 400 {

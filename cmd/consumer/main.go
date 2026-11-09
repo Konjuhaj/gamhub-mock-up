@@ -83,6 +83,7 @@ type EventsStream struct {
 	StreamName    string
 	Sender        BrazeSender
 	Ct            CheckpointTable
+	Pt            PlayerLookup
 }
 
 func (e *EventsStream) getIterator(ctx context.Context, ct CheckpointTable) *kinesis.GetShardIteratorOutput {
@@ -108,6 +109,31 @@ func (e *EventsStream) getIterator(ctx context.Context, ct CheckpointTable) *kin
 	return it
 }
 
+func (e *EventsStream) filterRecords(ctx context.Context, records []ktypes.Record) ([]UserEvent, error) {
+	var events []UserEvent
+	for _, rec := range records {
+		var event UserEvent
+		if err := json.Unmarshal(rec.Data, &event); err != nil {
+			fmt.Printf("Could not unmarshal event. Here's why %v\n", err)
+			continue
+		}
+		player, found, err := e.Pt.getPlayer(ctx, event.PlayerId)
+		if err != nil {
+			fmt.Printf("Could not retrieve Player from dynamo. Here's why %v\n", err)
+			return nil, err
+		}
+
+		if reason := suppressReason(player, found); reason != "" {
+			// Player ID wouldn't be logged in production like this. Would be ofuscated with hashing
+			fmt.Printf("suppressed %x reason=%s\n", player.Id, reason)
+			recordSuppressed(reason)
+			continue
+		}
+		events = append(events, event)
+	}
+	return events, nil
+}
+
 func (e *EventsStream) readStream(ctx context.Context, it *kinesis.GetShardIteratorOutput) {
 	iterator := it.ShardIterator
 	// the send and checkpoint always finish, even after Ctrl-C, so a batch is never left half done
@@ -118,7 +144,6 @@ func (e *EventsStream) readStream(ctx context.Context, it *kinesis.GetShardItera
 			fmt.Println("Shutting down, last checkpoint saved")
 			return
 		}
-		var events []UserEvent
 		out, err := e.KinesisClient.GetRecords(ctx, &kinesis.GetRecordsInput{
 			ShardIterator: iterator,
 		})
@@ -131,13 +156,9 @@ func (e *EventsStream) readStream(ctx context.Context, it *kinesis.GetShardItera
 			consumerLag.Set(float64(*out.MillisBehindLatest))
 		}
 
-		for _, rec := range out.Records {
-			var e UserEvent
-			if err := json.Unmarshal(rec.Data, &e); err != nil {
-				fmt.Printf("Could not unmarshal event. Here's why %v\n", err)
-				continue
-			}
-			events = append(events, e)
+		events, err := e.filterRecords(work, out.Records)
+		if err != nil {
+			panic(err)
 		}
 		if len(out.Records) != 0 {
 			err := e.Sender.SendEvents(work, events)
@@ -165,15 +186,24 @@ func main() {
 			o.DisableValidateResponseChecksum = true
 		}),
 	}
+	pt := PlayersTable{
+		TableName: "player_state",
+		DynamoDbClient: dynamodb.NewFromConfig(cfg, func(o *dynamodb.Options) {
+			o.DisableValidateResponseChecksum = true
+		}),
+	}
+
 	sender := BrazeSender{
 		Client: &http.Client{Timeout: 10 * time.Second},
 		URL:    "http://localhost:8081",
 	}
+
 	k := EventsStream{
 		StreamName:    "player-events",
 		KinesisClient: kinesis.NewFromConfig(cfg),
 		Sender:        sender,
 		Ct:            ct,
+		Pt:            pt,
 	}
 	go startMetricsServer(":2112")
 	input := k.getIterator(ctx, ct)
