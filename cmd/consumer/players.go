@@ -57,3 +57,7 @@ func suppressReason(p Player, found bool) string {
 
 	return ""
 }
+
+func markFirstPurchase(ctx, playerId, eventId string, at int64) (bool, error) {
+
+}
