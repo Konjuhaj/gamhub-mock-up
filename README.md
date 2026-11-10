@@ -4,19 +4,9 @@ A small proof of concept. Player events go into a Kinesis stream, a Go consumer 
 
 ## Architecture
 
-```
-┌──────────┐   events    ┌─────────────────┐   read    ┌──────────┐  POST /users/track  ┌────────────┐
-│ producer │ ──────────▶ │ Kinesis         │ ────────▶ │ consumer │ ──────────────────▶ │ Braze mock │
-└──────────┘             │ player-events   │           └──────────┘                     └────────────┘
-     │                   └─────────────────┘             │      │                             │
-     │ seed players                                      │      │ /metrics                    ▼
-     ▼                                                   ▼      ▼                       received.jsonl
-┌──────────────────────────────────────────────────────────┐  ┌────────────┐
-│ DynamoDB                                                 │  │ Prometheus │
-│  player_state  (is_minor, age_known, deleted)            │  └────────────┘
-│  checkpoints   (last sequence number per shard)          │
-└──────────────────────────────────────────────────────────┘
-```
+![Top-level architecture](Top-level%20architecture@1x.png)
+
+The diagram shows the target design. Trigger evaluation and GitHub Actions are not built yet, see [Not done yet](#not-done-yet).
 
 For every batch the consumer does four things:
 
